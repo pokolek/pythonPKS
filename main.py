@@ -1,26 +1,22 @@
 from scapy.all import *
 
+
 class Ramec:
     cislo_ramca = []
     dst_mac = []
     src_mac = []
     dlzka_pcap = 0
     dlzka_medium = 0
-    typ_ramca = ""
-    dlzka_z_ramca = ""
+    typ_ramca_or_dlzka = ""
     ethernetII = False
-    dsap = ""
-    ssap = ""
+    dsap_ssap = ""
     src_ip = []
     dst_ip = []
     vnoreny_protokol = ""
-    ramec_v_bytoch = bytearray()
+    pole_bytov = bytearray()
 
     def __init__(self, cislo_ramca):
         self.cislo_ramca = cislo_ramca
-
-
-
 
 
 def inicializuj_konfiguracny_subor(ether_typy, lsap_typy, ip_protokoly, tcp_porty, udp_porty):
@@ -64,67 +60,66 @@ def inicializuj_konfiguracny_subor(ether_typy, lsap_typy, ip_protokoly, tcp_port
 
 def analyzuj_ramec_1(subor_ramcov, list_ramcov):  # funkcia ktora analyzuje ramec podla bodu 1
     cislo_ramca = 0
+
     f.write("Analyza podla bodu 1\nNazov analyzovaneho suboru: " + nazov_suboru + "\n")
     for ramec in subor_ramcov:
         cislo_ramca += 1
+        tmp_ramec = Ramec(cislo_ramca)
         f.write(50 * "-")
         f.write("\n")
-        f.write(cislo_ramca.__str__() + ". ramec\n")
-        pole_bytov = bytes(ramec)
+        f.write(tmp_ramec.cislo_ramca.__str__() + ". ramec\n")
 
-        dst_mac = []
-        src_mac = []
-        dlzka_pcap = 0
-        dlzka_medium = 0
-        typ_ramca_or_dlzka = ""
-        ethernetII = False
-        dsap_ssap = ""
+        tmp_ramec.pole_bytov = bytes(ramec)
 
-        for bajt in pole_bytov:  # prechadzame ramec po bytoch
-            dlzka_pcap += 1
-            if dlzka_pcap <= 6:  # DST MAC
-                dst_mac.append(bajt)
-            elif 6 < dlzka_pcap <= 12:  # SRC MAC
-                src_mac.append(bajt)
-            elif 12 < dlzka_pcap < 14:  # Type/Lenght
-                typ_ramca_or_dlzka += ('%02x' % bajt).__str__()
-            elif dlzka_pcap == 14:  # zistujeme ci to je ether
-                typ_ramca_or_dlzka += ('%02x' % bajt).__str__()
-                if int(typ_ramca_or_dlzka, 16) > 1536:
-                    ethernetII = True
-            elif 14 < dlzka_pcap <= 16 and ethernetII == False:  # zistujeme 802.3
-                dsap_ssap += ('%02x' % bajt).__str__()
+        for bajt in tmp_ramec.pole_bytov:  # prechadzame ramec po bytoch
+            tmp_ramec.dlzka_pcap += 1
+            if tmp_ramec.dlzka_pcap <= 6:  # DST MAC
+                tmp_ramec.dst_mac.append(bajt)
 
-        if dlzka_pcap + 4 < 64:
-            dlzka_medium = 64
+            elif 6 < tmp_ramec.dlzka_pcap <= 12:  # SRC MAC
+                tmp_ramec.src_mac.append(bajt)
+
+            elif 12 < tmp_ramec.dlzka_pcap < 14:  # Type/Lenght
+                tmp_ramec.typ_ramca_or_dlzka += ('%02x' % bajt).__str__()
+
+            elif tmp_ramec.dlzka_pcap == 14:  # zistujeme ci to je ether
+                tmp_ramec.typ_ramca_or_dlzka += ('%02x' % bajt).__str__()
+                if int(tmp_ramec.typ_ramca_or_dlzka, 16) > 1536:
+                    tmp_ramec.ethernetII = True
+
+            elif 14 < tmp_ramec.dlzka_pcap <= 16 and not tmp_ramec.ethernetII:  # zistujeme 802.3
+                tmp_ramec.dsap_ssap += ('%02x' % bajt).__str__()
+
+        if tmp_ramec.dlzka_pcap + 4 < 64:
+            tmp_ramec.dlzka_medium = 64
         else:
-            dlzka_medium = dlzka_pcap + 4
+            tmp_ramec.dlzka_medium = tmp_ramec.dlzka_pcap + 4
 
-        f.write("dlzka ramca poskytnuta pcap API: " + dlzka_pcap.__str__() + " B\n")
-        f.write("dlzka ramca poskytnuta pcap API: " + dlzka_medium.__str__() + " B\n")
+        f.write("dlzka ramca poskytnuta pcap API: " + tmp_ramec.dlzka_pcap.__str__() + " B\n")
+        f.write("dlzka ramca poskytnuta pcap API: " + tmp_ramec.dlzka_medium.__str__() + " B\n")
 
-        if ethernetII == True:
+        if tmp_ramec.ethernetII:
             f.write("Ethernet II\n")
         else:
-            if dsap_ssap.__str__() == "ffff":
+            if tmp_ramec.dsap_ssap.__str__() == "ffff":
                 f.write("802.3 - RAW\n")
-            elif dsap_ssap.__str__() == "aaaa":
+            elif tmp_ramec.dsap_ssap.__str__() == "aaaa":
                 f.write("802.3 - LLC + SNAP\n")
             else:
                 f.write("802.3 - LLC\n")
 
         f.write("zdrojova MAC adresa: ")
         for i in range(6):
-            f.write('%02x ' % src_mac[i])
+            f.write('%02x ' % tmp_ramec.src_mac[i])
 
         f.write("\ncielova MAC adresa: ")
         for i in range(6):
-            f.write('%02x ' % dst_mac[i])
+            f.write('%02x ' % tmp_ramec.dst_mac[i])
 
         f.write("\n")
 
         vypis_ramca = 0
-        for bajt in pole_bytov:
+        for bajt in tmp_ramec.pole_bytov:
             vypis_ramca += 1
             f.write('%02x ' % bajt)
             if vypis_ramca == 8:
@@ -137,74 +132,73 @@ def analyzuj_ramec_1(subor_ramcov, list_ramcov):  # funkcia ktora analyzuje rame
 
         f.write(50 * "-")
         f.write("\n")
-
+        list_ramcov.append(tmp_ramec)
 
 
 def analyzuj_ramec_2(subor_ramcov):  # funkcia ktora analyzuje ramec podla bodu 2
     cislo_ramca = 0
-    f.write("Analyza podla bodu 1\nNazov analyzovaneho suboru: " + nazov_suboru + "\n")
+
+    f.write("Analyza podla bodu 2\nNazov analyzovaneho suboru: " + nazov_suboru + "\n")
     for ramec in subor_ramcov:
         cislo_ramca += 1
+        tmp_ramec = Ramec(cislo_ramca)
         f.write(50 * "-")
         f.write("\n")
-        f.write(cislo_ramca.__str__() + ". ramec\n")
-        pole_bytov = bytes(ramec)
+        f.write(tmp_ramec.cislo_ramca.__str__() + ". ramec\n")
 
-        dst_mac = []
-        src_mac = []
-        dlzka_pcap = 0
-        dlzka_medium = 0
-        typ_ramca_or_dlzka = ""
-        ethernetII = False
-        dsap_ssap = ""
+        tmp_ramec.pole_bytov = bytes(ramec)
 
-        for bajt in pole_bytov:  # prechadzame ramec po bytoch
-            dlzka_pcap += 1
-            if dlzka_pcap <= 6:  # DST MAC
-                dst_mac.append(bajt)
-            elif 6 < dlzka_pcap <= 12:  # SRC MAC
-                src_mac.append(bajt)
-            elif 12 < dlzka_pcap < 14:  # Type/Lenght
-                typ_ramca_or_dlzka += ('%02x' % bajt).__str__()
-            elif dlzka_pcap == 14:  # zistujeme ci to je ether
-                typ_ramca_or_dlzka += ('%02x' % bajt).__str__()
-                if int(typ_ramca_or_dlzka, 16) > 1536:
-                    ethernetII = True
-            elif 14 < dlzka_pcap <= 16 and ethernetII == False:  # zistujeme 802.3
-                dsap_ssap += ('%02x' % bajt).__str__()
+        for bajt in tmp_ramec.pole_bytov:  # prechadzame ramec po bytoch
+            tmp_ramec.dlzka_pcap += 1
+            if tmp_ramec.dlzka_pcap <= 6:  # DST MAC
+                tmp_ramec.dst_mac.append(bajt)
 
-        if dlzka_pcap + 4 < 64:
-            dlzka_medium = 64
+            elif 6 < tmp_ramec.dlzka_pcap <= 12:  # SRC MAC
+                tmp_ramec.src_mac.append(bajt)
+
+            elif 12 < tmp_ramec.dlzka_pcap < 14:  # Type/Lenght
+                tmp_ramec.typ_ramca_or_dlzka += ('%02x' % bajt).__str__()
+
+            elif tmp_ramec.dlzka_pcap == 14:  # zistujeme ci to je ether
+                tmp_ramec.typ_ramca_or_dlzka += ('%02x' % bajt).__str__()
+                if int(tmp_ramec.typ_ramca_or_dlzka, 16) > 1536:
+                    tmp_ramec.ethernetII = True
+
+            elif 14 < tmp_ramec.dlzka_pcap <= 16 and not tmp_ramec.ethernetII:  # zistujeme 802.3
+                tmp_ramec.dsap_ssap += ('%02x' % bajt).__str__()
+
+        if tmp_ramec.dlzka_pcap + 4 < 64:
+            tmp_ramec.dlzka_medium = 64
         else:
-            dlzka_medium = dlzka_pcap + 4
+            tmp_ramec.dlzka_medium = tmp_ramec.dlzka_pcap + 4
 
-        f.write("dlzka ramca poskytnuta pcap API: " + dlzka_pcap.__str__() + " B\n")
-        f.write("dlzka ramca poskytnuta pcap API: " + dlzka_medium.__str__() + " B\n")
+        f.write("dlzka ramca poskytnuta pcap API: " + tmp_ramec.dlzka_pcap.__str__() + " B\n")
+        f.write("dlzka ramca poskytnuta pcap API: " + tmp_ramec.dlzka_medium.__str__() + " B\n")
 
-        if ethernetII == True:
+        if tmp_ramec.ethernetII:
             f.write("Ethernet II\n")
-            if(ether_typy.get(int(typ_ramca_or_dlzka, 16))):
-                f.write("Vnoreny protokol: " + ether_typy.get(int(typ_ramca_or_dlzka, 16)) + "\n")
+            if ether_typy.get(int(tmp_ramec.typ_ramca_or_dlzka, 16)):
+                f.write("Vnoreny protokol: " + ether_typy.get(int(tmp_ramec.typ_ramca_or_dlzka, 16)) + "\n")
         else:
-            if dsap_ssap.__str__() == "ffff":
+            if tmp_ramec.dsap_ssap.__str__() == "ffff":
                 f.write("802.3 - RAW\n")
-            elif dsap_ssap.__str__() == "aaaa":
+            elif tmp_ramec.dsap_ssap.__str__() == "aaaa":
                 f.write("802.3 - LLC + SNAP\n")
             else:
                 f.write("802.3 - LLC\n")
 
         f.write("zdrojova MAC adresa: ")
         for i in range(6):
-            f.write('%02x ' % src_mac[i])
+            f.write('%02x ' % tmp_ramec.src_mac[i])
 
         f.write("\ncielova MAC adresa: ")
         for i in range(6):
-            f.write('%02x ' % dst_mac[i])
+            f.write('%02x ' % tmp_ramec.dst_mac[i])
 
         f.write("\n")
 
         vypis_ramca = 0
-        for bajt in pole_bytov:
+        for bajt in tmp_ramec.pole_bytov:
             vypis_ramca += 1
             f.write('%02x ' % bajt)
             if vypis_ramca == 8:
@@ -217,9 +211,12 @@ def analyzuj_ramec_2(subor_ramcov):  # funkcia ktora analyzuje ramec podla bodu 
 
         f.write(50 * "-")
         f.write("\n")
+        list_ramcov.append(tmp_ramec)
+
 
 def analyzuj_ramec_3(ramec_vbytoch):  # funkcia ktora analyzuje ramec podla bodu 2
     print(ether_typy)
+
 
 ether_typy = {}
 lsap_typy = {}
@@ -257,6 +254,7 @@ while True:
     if int(cislo_vykonania) == 1:
         analyzuj_ramec_1(subor_ramcov, list_ramcov)
         print("Bola vykonana analyza suboru " + nazov_suboru + " podla bodu 1, pozri subor...")
+        print("Analyzovanych bolo " + len(list_ramcov).__str__() + " ramcov...")
 
     elif int(cislo_vykonania) == 2:
         analyzuj_ramec_2(subor_ramcov)
