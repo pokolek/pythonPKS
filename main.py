@@ -12,6 +12,10 @@ class Ramec:
         self.typ_ramca_or_dlzka = ""
         self.ethernetII_flag = False
         self.ip_flag = False
+        self.tcp_flag = False
+        self.udp_flag = False
+        self.src_port = ""
+        self.dst_port = ""
         self.dsap = ""
         self.ssap = ""
         self.vnoreny_protokol = ""
@@ -193,6 +197,7 @@ def analyzuj_ramec_2(subor_ramcov, list_ramcov):  # funkcia ktora analyzuje rame
                 f.write("Vnoreny protokol: IPX\n")
             elif tmp_ramec.dsap.__str__() == "aa":
                 f.write("802.3 - LLC + SNAP\n")
+                f.write("Vnoreny protokol: SNAP\n")
             else:
                 f.write("802.3 - LLC\n")
                 if lsap_typy.get(int(tmp_ramec.dsap, 16)):
@@ -253,8 +258,14 @@ def analyzuj_ramec_3(subor_ramcov, list_ramcov):  # funkcia ktora analyzuje rame
                     if ether_typy.get(int(tmp_ramec.typ_ramca_or_dlzka, 16)) == "IPv4":
                         tmp_ramec.ip_flag = True
 
+
             elif tmp_ramec.dlzka_pcap == 24 and tmp_ramec.ip_flag:  #hladame protokol ip
                 tmp_ramec.ip_protokol = ip_protokoly.get(bajt)
+                if tmp_ramec.ip_protokol == "TCP":
+                    tmp_ramec.tcp_flag = True
+                elif tmp_ramec.ip_protokol == "UDP":
+                    tmp_ramec.udp_flag = True
+
 
             elif 27 <= tmp_ramec.dlzka_pcap <= 30 and tmp_ramec.ip_flag:
                 tmp_ramec.src_ip.append(bajt)
@@ -262,11 +273,14 @@ def analyzuj_ramec_3(subor_ramcov, list_ramcov):  # funkcia ktora analyzuje rame
             elif 31 <= tmp_ramec.dlzka_pcap <= 34 and tmp_ramec.ip_flag:
                 tmp_ramec.dst_ip.append(bajt)
 
-        print("////////////")
+            elif 34 < tmp_ramec.dlzka_pcap <= 36 and tmp_ramec.ip_flag:
+                tmp_ramec.src_port += ('%02x' % bajt).__str__()
 
-        print(tmp_ramec)
-        print(tmp_ramec.dst_mac)
-        dst_ip_adresy[tmp_ramec.dst_ip.__str__()] = 0
+            elif 36 < tmp_ramec.dlzka_pcap <= 38 and tmp_ramec.ip_flag:
+                tmp_ramec.dst_port += ('%02x' % bajt).__str__()
+
+        if tmp_ramec.ip_flag:
+            dst_ip_adresy[tmp_ramec.dst_ip.__str__()] = 0
 
         if tmp_ramec.dlzka_pcap + 4 < 64:
             tmp_ramec.dlzka_medium = 64
@@ -293,18 +307,35 @@ def analyzuj_ramec_3(subor_ramcov, list_ramcov):  # funkcia ktora analyzuje rame
             if ether_typy.get(int(tmp_ramec.typ_ramca_or_dlzka, 16)):
                 f.write("\nVnoreny protokol: " + ether_typy.get(int(tmp_ramec.typ_ramca_or_dlzka, 16)))
 
-            f.write("\n" + tmp_ramec.ip_protokol)
-
-
             f.write("\nzdrojova IP adresa: ")
-            for i in range(4):
+            for i in range(3):
                 f.write('%d.' % tmp_ramec.src_ip[i])
+            f.write('%d' % tmp_ramec.src_ip[3])
 
             f.write("\ncielova IP adresa: ")
-            for i in range(4):
+            for i in range(3):
                 f.write('%d.' % tmp_ramec.dst_ip[i])
+            f.write('%d' % tmp_ramec.dst_ip[3])
 
-            f.write("\n")
+            f.write("\n" + tmp_ramec.ip_protokol)
+
+            if tmp_ramec.tcp_flag:
+                if tcp_porty.get(int(tmp_ramec.dst_port, 16)):
+                    f.write("\n" + tcp_porty.get(int(tmp_ramec.dst_port, 16)))
+
+                elif tcp_porty.get(int(tmp_ramec.src_port, 16)):
+                    f.write("\n" + tcp_porty.get(int(tmp_ramec.src_port, 16)))
+
+            elif tmp_ramec.udp_flag:
+                if udp_porty.get(int(tmp_ramec.dst_port, 16)):
+                    f.write("\n" + udp_porty.get(int(tmp_ramec.dst_port, 16)))
+
+                elif udp_porty.get(int(tmp_ramec.src_port, 16)):
+                    f.write("\n" + udp_porty.get(int(tmp_ramec.src_port, 16)))
+
+            f.write("\nzdrojovy port: " + int(tmp_ramec.src_port, 16).__str__())
+            f.write("\ncielovy port: " + int(tmp_ramec.dst_port, 16).__str__() + "\n")
+
 
             vypis_ramca = 0
             for bajt in tmp_ramec.pole_bytov:
@@ -325,16 +356,30 @@ def analyzuj_ramec_3(subor_ramcov, list_ramcov):  # funkcia ktora analyzuje rame
             list_ramcov.append(tmp_ramec)
             continue
 
-    max = -1
+    pocet_adries = -1
     max_adresa = []
+
+    for ramec in list_ramcov:
+        if ramec.ip_flag:
+            dst_ip_adresy[ramec.dst_ip.__str__()] += 1
+
     for adresa in dst_ip_adresy:
-        dst_ip_adresy[adresa] += 1
-        if max < dst_ip_adresy[adresa]:
-            max = dst_ip_adresy[adresa]
+        f.write("\n")
+        if pocet_adries < dst_ip_adresy[adresa]:
+            pocet_adries = dst_ip_adresy[adresa]
             max_adresa = adresa
 
+        adresa = adresa.replace('[', '')
+        adresa = adresa.replace(']', '')
+        adresa = adresa.replace(', ', '.')
 
-    f.write("Adresa uzla s najvacsim poctom odoslanych paketov: \n" + max_adresa.__str__() + " " + max.__str__() + " paketov\n")
+        f.write(adresa)
+
+    max_adresa = max_adresa.replace('[', '')
+    max_adresa = max_adresa.replace(']', '')
+    max_adresa = max_adresa.replace(', ', '.')
+
+    f.write("\nAdresa uzla s najvacsim poctom odoslanych paketov: " + max_adresa.__str__() + " = " + pocet_adries.__str__() + " paketov\n")
     del tmp_ramec
 
 
