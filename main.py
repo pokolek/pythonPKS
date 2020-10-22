@@ -14,6 +14,7 @@ class Ramec:
         self.ip_flag = False
         self.tcp_flag = False
         self.udp_flag = False
+        self.icmp_flag = False
         self.src_port = ""
         self.dst_port = ""
         self.dsap = ""
@@ -230,7 +231,7 @@ def analyzuj_ramec_2(subor_ramcov, list_ramcov):  # funkcia ktora analyzuje rame
         list_ramcov.append(tmp_ramec)
 
 
-def analyzuj_ramec_3(subor_ramcov, list_ramcov):  # funkcia ktora analyzuje ramec podla bodu 2
+def analyzuj_ramec_3(subor_ramcov, list_ramcov):  # funkcia ktora analyzuje ramec podla bodu 3
     cislo_ramca = 0
     dst_ip_adresy = {}
 
@@ -382,6 +383,17 @@ def analyzuj_ramec_3(subor_ramcov, list_ramcov):  # funkcia ktora analyzuje rame
     f.write("\nAdresa uzla s najvacsim poctom odoslanych paketov: " + max_adresa.__str__() + " = " + pocet_adries.__str__() + " paketov\n")
     del tmp_ramec
 
+def analyzuj_ramec_4(subor_ramcov, list_ramcov):  # funkcia ktora analyzuje ramec podla bodu 4
+    cislo_ramca = 0
+    dst_ip_adresy = {}
+
+    f.write("Analyza podla bodu 3\nNazov analyzovaneho suboru: " + nazov_suboru + "\n")
+    for ramec in subor_ramcov:
+        cislo_ramca += 1
+        tmp_ramec = Ramec(cislo_ramca)
+        tmp_ramec.pole_bytov = bytes(ramec)
+
+
 
 
 ether_typy = {}
@@ -432,7 +444,9 @@ while True:
         print("Analyzovanych bolo " + len(list_ramcov).__str__() + " ramcov...")
 
     elif int(cislo_vykonania) == 4:
-        print("zad4")
+        analyzuj_ramec_4(subor_ramcov, list_ramcov)
+        print("Bola vykonana analyza suboru " + nazov_suboru + " podla bodu 4, pozri subor...")
+        print("Analyzovanych bolo " + len(list_ramcov).__str__() + " ramcov...")
     else:
         print("Zadal si nespravne cislo skus to znova...")
         continue
