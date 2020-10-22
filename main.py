@@ -15,6 +15,7 @@ class Ramec:
         self.tcp_flag = False
         self.udp_flag = False
         self.icmp_flag = False
+        self.arp_flag = False
         self.src_port = ""
         self.dst_port = ""
         self.dsap = ""
@@ -260,13 +261,12 @@ def analyzuj_ramec_3(subor_ramcov, list_ramcov):  # funkcia ktora analyzuje rame
                         tmp_ramec.ip_flag = True
 
 
-            elif tmp_ramec.dlzka_pcap == 24 and tmp_ramec.ip_flag:  #hladame protokol ip
+            elif tmp_ramec.dlzka_pcap == 24 and tmp_ramec.ip_flag:  # hladame protokol ip
                 tmp_ramec.ip_protokol = ip_protokoly.get(bajt)
                 if tmp_ramec.ip_protokol == "TCP":
                     tmp_ramec.tcp_flag = True
                 elif tmp_ramec.ip_protokol == "UDP":
                     tmp_ramec.udp_flag = True
-
 
             elif 27 <= tmp_ramec.dlzka_pcap <= 30 and tmp_ramec.ip_flag:
                 tmp_ramec.src_ip.append(bajt)
@@ -287,7 +287,6 @@ def analyzuj_ramec_3(subor_ramcov, list_ramcov):  # funkcia ktora analyzuje rame
             tmp_ramec.dlzka_medium = 64
         else:
             tmp_ramec.dlzka_medium = tmp_ramec.dlzka_pcap + 4
-
 
         if tmp_ramec.ethernetII_flag and tmp_ramec.ip_flag:
             f.write(50 * "-")
@@ -337,7 +336,6 @@ def analyzuj_ramec_3(subor_ramcov, list_ramcov):  # funkcia ktora analyzuje rame
             f.write("\nzdrojovy port: " + int(tmp_ramec.src_port, 16).__str__())
             f.write("\ncielovy port: " + int(tmp_ramec.dst_port, 16).__str__() + "\n")
 
-
             vypis_ramca = 0
             for bajt in tmp_ramec.pole_bytov:
                 vypis_ramca += 1
@@ -380,20 +378,307 @@ def analyzuj_ramec_3(subor_ramcov, list_ramcov):  # funkcia ktora analyzuje rame
     max_adresa = max_adresa.replace(']', '')
     max_adresa = max_adresa.replace(', ', '.')
 
-    f.write("\nAdresa uzla s najvacsim poctom odoslanych paketov: " + max_adresa.__str__() + " = " + pocet_adries.__str__() + " paketov\n")
+    f.write(
+        "\nAdresa uzla s najvacsim poctom odoslanych paketov: " + max_adresa.__str__() + " = " + pocet_adries.__str__() + " paketov\n")
     del tmp_ramec
+
 
 def analyzuj_ramec_4(subor_ramcov, list_ramcov):  # funkcia ktora analyzuje ramec podla bodu 4
     cislo_ramca = 0
     dst_ip_adresy = {}
+    while True:
+        typ_filtra = input("Zadaj cislo pre filter: \n1-HTTP\n2-HTTPS\n3-TELNET\n4-SSH\n5-FTP-control\n6-FTP-data\n7-TFTP\n8-ICMP\n9-ARP")
+        if 0 < int(typ_filtra) < 10:
+            break
+        else:
+            print("Zadal si zle cislo... Skus to este raz\n")
 
-    f.write("Analyza podla bodu 3\nNazov analyzovaneho suboru: " + nazov_suboru + "\n")
+    filter_hodnota = {1:"HTTP", 2:"HTTPS", 3:"TELNET", 4:"SSH", 5:"FTP-control", 6:"FTP-data", 7:"TFTP", 8:"ICMP", 9:"ARP"}
+
+    f.write("Analyza podla bodu 4\nNazov analyzovaneho suboru: " + nazov_suboru + "\n")
     for ramec in subor_ramcov:
         cislo_ramca += 1
         tmp_ramec = Ramec(cislo_ramca)
         tmp_ramec.pole_bytov = bytes(ramec)
 
+        for bajt in tmp_ramec.pole_bytov:  # prechadzame ramec po bytoch
+            tmp_ramec.dlzka_pcap += 1
+            if tmp_ramec.dlzka_pcap <= 6:  # DST MAC
+                tmp_ramec.dst_mac.append(bajt)
 
+            elif 6 < tmp_ramec.dlzka_pcap <= 12:  # SRC MAC
+                tmp_ramec.src_mac.append(bajt)
+
+            elif 12 < tmp_ramec.dlzka_pcap < 14:  # Type/Lenght
+                tmp_ramec.typ_ramca_or_dlzka += ('%02x' % bajt).__str__()
+
+            elif tmp_ramec.dlzka_pcap == 14:  # zistujeme ci to je ether
+                tmp_ramec.typ_ramca_or_dlzka += ('%02x' % bajt).__str__()
+                if int(tmp_ramec.typ_ramca_or_dlzka, 16) > 1536:
+                    tmp_ramec.ethernetII_flag = True
+                    if ether_typy.get(int(tmp_ramec.typ_ramca_or_dlzka, 16)) == "IPv4":
+                        tmp_ramec.ip_flag = True
+                    elif ether_typy.get(int(tmp_ramec.typ_ramca_or_dlzka, 16)) == "ARP":
+                        tmp_ramec.arp_flag = True
+
+
+            elif tmp_ramec.dlzka_pcap == 24 and tmp_ramec.ip_flag:  # hladame protokol ip
+                tmp_ramec.ip_protokol = ip_protokoly.get(bajt)
+                if tmp_ramec.ip_protokol == "TCP":
+                    tmp_ramec.tcp_flag = True
+                elif tmp_ramec.ip_protokol == "UDP":
+                    tmp_ramec.udp_flag = True
+                elif tmp_ramec.ip_protokol == "ICMP":
+                    tmp_ramec.icmp_flag = True
+
+            elif 27 <= tmp_ramec.dlzka_pcap <= 30 and tmp_ramec.ip_flag:
+                tmp_ramec.src_ip.append(bajt)
+
+            elif 31 <= tmp_ramec.dlzka_pcap <= 34 and tmp_ramec.ip_flag:
+                tmp_ramec.dst_ip.append(bajt)
+
+            elif 34 < tmp_ramec.dlzka_pcap <= 36 and tmp_ramec.ip_flag:
+                tmp_ramec.src_port += ('%02x' % bajt).__str__()
+
+            elif 36 < tmp_ramec.dlzka_pcap <= 38 and tmp_ramec.ip_flag:
+                tmp_ramec.dst_port += ('%02x' % bajt).__str__()
+
+        if tmp_ramec.ip_flag:
+            dst_ip_adresy[tmp_ramec.dst_ip.__str__()] = 0
+
+        if tmp_ramec.dlzka_pcap + 4 < 64:
+            tmp_ramec.dlzka_medium = 64
+        else:
+            tmp_ramec.dlzka_medium = tmp_ramec.dlzka_pcap + 4
+
+        if tmp_ramec.src_port or tmp_ramec.dst_port:
+            if tmp_ramec.tcp_flag and tcp_porty.get(int(tmp_ramec.src_port, 16)) == filter_hodnota.get(int(typ_filtra)) or tcp_porty.get(int(tmp_ramec.dst_port, 16)) == filter_hodnota.get(int(typ_filtra)):
+                f.write(50 * "-")
+                f.write("\n")
+                f.write(tmp_ramec.cislo_ramca.__str__() + ". ramec\n")
+                f.write("dlzka ramca poskytnuta pcap API: " + tmp_ramec.dlzka_pcap.__str__() + " B\n")
+                f.write("dlzka ramca poskytnuta pcap API: " + tmp_ramec.dlzka_medium.__str__() + " B\n")
+                f.write("Ethernet II\n")
+
+                f.write("zdrojova MAC adresa: ")
+                for i in range(6):
+                    f.write('%02x ' % tmp_ramec.src_mac[i])
+
+                f.write("\ncielova MAC adresa: ")
+                for i in range(6):
+                    f.write('%02x ' % tmp_ramec.dst_mac[i])
+
+                if ether_typy.get(int(tmp_ramec.typ_ramca_or_dlzka, 16)):
+                    f.write("\nVnoreny protokol: " + ether_typy.get(int(tmp_ramec.typ_ramca_or_dlzka, 16)))
+
+                f.write("\nzdrojova IP adresa: ")
+                for i in range(3):
+                    f.write('%d.' % tmp_ramec.src_ip[i])
+                f.write('%d' % tmp_ramec.src_ip[3])
+
+                f.write("\ncielova IP adresa: ")
+                for i in range(3):
+                    f.write('%d.' % tmp_ramec.dst_ip[i])
+                f.write('%d' % tmp_ramec.dst_ip[3])
+
+                f.write("\n" + tmp_ramec.ip_protokol)
+
+                if tmp_ramec.tcp_flag:
+                    if tcp_porty.get(int(tmp_ramec.dst_port, 16)):
+                        f.write("\n" + tcp_porty.get(int(tmp_ramec.dst_port, 16)))
+
+                    elif tcp_porty.get(int(tmp_ramec.src_port, 16)):
+                        f.write("\n" + tcp_porty.get(int(tmp_ramec.src_port, 16)))
+
+                f.write("\nzdrojovy port: " + int(tmp_ramec.src_port, 16).__str__())
+                f.write("\ncielovy port: " + int(tmp_ramec.dst_port, 16).__str__() + "\n")
+
+                vypis_ramca = 0
+                for bajt in tmp_ramec.pole_bytov:
+                    vypis_ramca += 1
+                    f.write('%02x ' % bajt)
+                    if vypis_ramca == 8:
+                        f.write(" ")
+                    if vypis_ramca == 16:
+                        vypis_ramca = 0
+                        f.write("\n")
+
+                f.write("\n")
+
+                f.write(50 * "-")
+                f.write("\n")
+                list_ramcov.append(tmp_ramec)
+
+            elif tmp_ramec.udp_flag and udp_porty.get(int(tmp_ramec.src_port, 16)) == filter_hodnota.get(int(typ_filtra)) or udp_porty.get(int(tmp_ramec.dst_port, 16)) == filter_hodnota.get(int(typ_filtra)):
+                f.write(50 * "-")
+                f.write("\n")
+                f.write(tmp_ramec.cislo_ramca.__str__() + ". ramec\n")
+                f.write("dlzka ramca poskytnuta pcap API: " + tmp_ramec.dlzka_pcap.__str__() + " B\n")
+                f.write("dlzka ramca poskytnuta pcap API: " + tmp_ramec.dlzka_medium.__str__() + " B\n")
+                f.write("Ethernet II\n")
+
+                f.write("zdrojova MAC adresa: ")
+                for i in range(6):
+                    f.write('%02x ' % tmp_ramec.src_mac[i])
+
+                f.write("\ncielova MAC adresa: ")
+                for i in range(6):
+                    f.write('%02x ' % tmp_ramec.dst_mac[i])
+
+                if ether_typy.get(int(tmp_ramec.typ_ramca_or_dlzka, 16)):
+                    f.write("\nVnoreny protokol: " + ether_typy.get(int(tmp_ramec.typ_ramca_or_dlzka, 16)))
+
+                f.write("\nzdrojova IP adresa: ")
+                for i in range(3):
+                    f.write('%d.' % tmp_ramec.src_ip[i])
+                f.write('%d' % tmp_ramec.src_ip[3])
+
+                f.write("\ncielova IP adresa: ")
+                for i in range(3):
+                    f.write('%d.' % tmp_ramec.dst_ip[i])
+                f.write('%d' % tmp_ramec.dst_ip[3])
+
+                f.write("\n" + tmp_ramec.ip_protokol)
+
+                if tmp_ramec.tcp_flag:
+                    if tcp_porty.get(int(tmp_ramec.dst_port, 16)):
+                        f.write("\n" + udp_porty.get(int(tmp_ramec.dst_port, 16)))
+
+                    elif tcp_porty.get(int(tmp_ramec.src_port, 16)):
+                        f.write("\n" + udp_porty.get(int(tmp_ramec.src_port, 16)))
+
+                f.write("\nzdrojovy port: " + int(tmp_ramec.src_port, 16).__str__())
+                f.write("\ncielovy port: " + int(tmp_ramec.dst_port, 16).__str__() + "\n")
+
+                vypis_ramca = 0
+                for bajt in tmp_ramec.pole_bytov:
+                    vypis_ramca += 1
+                    f.write('%02x ' % bajt)
+                    if vypis_ramca == 8:
+                        f.write(" ")
+                    if vypis_ramca == 16:
+                        vypis_ramca = 0
+                        f.write("\n")
+
+                f.write("\n")
+
+                f.write(50 * "-")
+                f.write("\n")
+                list_ramcov.append(tmp_ramec)
+
+            elif tmp_ramec.icmp_flag and tcp_porty.get(int(tmp_ramec.src_port, 16)) == filter_hodnota.get(int(typ_filtra)) or tcp_porty.get(
+                    int(tmp_ramec.dst_port, 16)) == filter_hodnota.get(int(typ_filtra)):
+                f.write(50 * "-")
+                f.write("\n")
+                f.write(tmp_ramec.cislo_ramca.__str__() + ". ramec\n")
+                f.write("dlzka ramca poskytnuta pcap API: " + tmp_ramec.dlzka_pcap.__str__() + " B\n")
+                f.write("dlzka ramca poskytnuta pcap API: " + tmp_ramec.dlzka_medium.__str__() + " B\n")
+                f.write("Ethernet II\n")
+
+                f.write("zdrojova MAC adresa: ")
+                for i in range(6):
+                    f.write('%02x ' % tmp_ramec.src_mac[i])
+
+                f.write("\ncielova MAC adresa: ")
+                for i in range(6):
+                    f.write('%02x ' % tmp_ramec.dst_mac[i])
+
+                if ether_typy.get(int(tmp_ramec.typ_ramca_or_dlzka, 16)):
+                    f.write("\nVnoreny protokol: " + ether_typy.get(int(tmp_ramec.typ_ramca_or_dlzka, 16)))
+
+                f.write("\nzdrojova IP adresa: ")
+                for i in range(3):
+                    f.write('%d.' % tmp_ramec.src_ip[i])
+                f.write('%d' % tmp_ramec.src_ip[3])
+
+                f.write("\ncielova IP adresa: ")
+                for i in range(3):
+                    f.write('%d.' % tmp_ramec.dst_ip[i])
+                f.write('%d' % tmp_ramec.dst_ip[3])
+
+                f.write("\n" + tmp_ramec.ip_protokol)
+
+                vypis_ramca = 0
+                for bajt in tmp_ramec.pole_bytov:
+                    vypis_ramca += 1
+                    f.write('%02x ' % bajt)
+                    if vypis_ramca == 8:
+                        f.write(" ")
+                    if vypis_ramca == 16:
+                        vypis_ramca = 0
+                        f.write("\n")
+
+                f.write("\n")
+
+                f.write(50 * "-")
+                f.write("\n")
+                list_ramcov.append(tmp_ramec)
+
+            else:
+                list_ramcov.append(tmp_ramec)
+                continue
+
+        if tmp_ramec.arp_flag and filter_hodnota.get(int(typ_filtra)) == "ARP":
+            f.write(50 * "-")
+            f.write("\n")
+            f.write(tmp_ramec.cislo_ramca.__str__() + ". ramec\n")
+            f.write("dlzka ramca poskytnuta pcap API: " + tmp_ramec.dlzka_pcap.__str__() + " B\n")
+            f.write("dlzka ramca poskytnuta pcap API: " + tmp_ramec.dlzka_medium.__str__() + " B\n")
+            f.write("Ethernet II\n")
+
+            f.write("zdrojova MAC adresa: ")
+            for i in range(6):
+                f.write('%02x ' % tmp_ramec.src_mac[i])
+
+            f.write("\ncielova MAC adresa: ")
+            for i in range(6):
+                f.write('%02x ' % tmp_ramec.dst_mac[i])
+
+            if ether_typy.get(int(tmp_ramec.typ_ramca_or_dlzka, 16)):
+                f.write("\nVnoreny protokol: " + ether_typy.get(int(tmp_ramec.typ_ramca_or_dlzka, 16)) + "\n")
+
+            vypis_ramca = 0
+            for bajt in tmp_ramec.pole_bytov:
+                vypis_ramca += 1
+                f.write('%02x ' % bajt)
+                if vypis_ramca == 8:
+                    f.write(" ")
+                if vypis_ramca == 16:
+                    vypis_ramca = 0
+                    f.write("\n")
+
+            f.write("\n")
+
+            f.write(50 * "-")
+            f.write("\n")
+            list_ramcov.append(tmp_ramec)
+
+    pocet_adries = -1
+    max_adresa = []
+
+    for ramec in list_ramcov:
+        if ramec.ip_flag:
+            dst_ip_adresy[ramec.dst_ip.__str__()] += 1
+
+    for adresa in dst_ip_adresy:
+        f.write("\n")
+        if pocet_adries < dst_ip_adresy[adresa]:
+            pocet_adries = dst_ip_adresy[adresa]
+            max_adresa = adresa
+
+        adresa = adresa.replace('[', '')
+        adresa = adresa.replace(']', '')
+        adresa = adresa.replace(', ', '.')
+
+        f.write(adresa)
+
+    max_adresa = max_adresa.replace('[', '')
+    max_adresa = max_adresa.replace(']', '')
+    max_adresa = max_adresa.replace(', ', '.')
+
+    f.write(
+        "\nAdresa uzla s najvacsim poctom odoslanych paketov: " + max_adresa.__str__() + " = " + pocet_adries.__str__() + " paketov\n")
+    del tmp_ramec
 
 
 ether_typy = {}
